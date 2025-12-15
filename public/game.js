@@ -551,12 +551,6 @@ function initFriendsSystem() {
         if (e.key === 'Enter') sendFriendRequest();
     });
     
-    // Name edit input - enter key to save, escape to cancel
-    document.getElementById('edit-name-input').addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') saveNewName();
-        if (e.key === 'Escape') cancelEditName();
-    });
-    
     // Close modal on outside click
     document.getElementById('friends-modal').addEventListener('click', (e) => {
         if (e.target.id === 'friends-modal') {
@@ -612,6 +606,82 @@ function closeFriendsModal() {
     document.getElementById('friends-modal').classList.remove('active');
 }
 
+// Open settings modal
+function openSettingsModal() {
+    document.getElementById('settings-modal').classList.add('active');
+    document.getElementById('settings-username').value = '';
+    document.getElementById('settings-error').textContent = '';
+    document.getElementById('settings-success').textContent = '';
+    
+    // Update current info display
+    document.getElementById('current-username-display').textContent = myName || '-';
+    document.getElementById('current-friendcode-display').textContent = myFriendCode || '-';
+}
+
+// Close settings modal
+function closeSettingsModal() {
+    document.getElementById('settings-modal').classList.remove('active');
+}
+
+// Save username
+function saveUsername() {
+    const newUsername = document.getElementById('settings-username').value.trim();
+    const errorEl = document.getElementById('settings-error');
+    const successEl = document.getElementById('settings-success');
+    
+    errorEl.textContent = '';
+    successEl.textContent = '';
+    
+    if (!newUsername) {
+        errorEl.textContent = 'Please enter a username';
+        return;
+    }
+    
+    if (newUsername.length < 2) {
+        errorEl.textContent = 'Username must be at least 2 characters';
+        return;
+    }
+    
+    if (newUsername.length > 15) {
+        errorEl.textContent = 'Username must be 15 characters or less';
+        return;
+    }
+    
+    if (!/^[a-zA-Z0-9_]+$/.test(newUsername)) {
+        errorEl.textContent = 'Username can only contain letters, numbers, and underscores';
+        return;
+    }
+    
+    // Send to server for validation
+    socket.emit('changeUsername', { newUsername: newUsername });
+}
+
+// Handle username change response
+socket.on('usernameChanged', (data) => {
+    myName = data.newUsername;
+    localStorage.setItem('playerName', myName);
+    
+    document.getElementById('settings-success').textContent = 'Username changed successfully!';
+    document.getElementById('settings-error').textContent = '';
+    document.getElementById('current-username-display').textContent = myName;
+    document.getElementById('display-profile-name').textContent = myName;
+    
+    // Clear input
+    document.getElementById('settings-username').value = '';
+});
+
+socket.on('usernameError', (data) => {
+    document.getElementById('settings-error').textContent = data.message;
+    document.getElementById('settings-success').textContent = '';
+});
+
+// Close settings modal on outside click
+document.addEventListener('click', (e) => {
+    if (e.target.id === 'settings-modal') {
+        closeSettingsModal();
+    }
+});
+
 // Switch tabs
 function switchTab(tabId) {
     document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -629,50 +699,6 @@ function refreshFriendCode() {
     if (confirm('Are you sure you want to get a new friend code? Your existing friends will still have you, but anyone you shared your old code with won\'t be able to add you.')) {
         socket.emit('refreshFriendCode');
     }
-}
-
-// Name editing functions
-function startEditName() {
-    document.getElementById('name-display-mode').style.display = 'none';
-    document.getElementById('name-edit-mode').style.display = 'flex';
-    document.getElementById('name-change-error').textContent = '';
-    const input = document.getElementById('edit-name-input');
-    input.value = myName;
-    input.focus();
-    input.select();
-}
-
-function cancelEditName() {
-    document.getElementById('name-display-mode').style.display = 'flex';
-    document.getElementById('name-edit-mode').style.display = 'none';
-    document.getElementById('name-change-error').textContent = '';
-}
-
-function saveNewName() {
-    const newName = document.getElementById('edit-name-input').value.trim();
-    document.getElementById('name-change-error').textContent = '';
-    
-    if (!newName) {
-        document.getElementById('name-change-error').textContent = 'Name cannot be empty';
-        return;
-    }
-    
-    if (newName.length < 2) {
-        document.getElementById('name-change-error').textContent = 'Name must be at least 2 characters';
-        return;
-    }
-    
-    if (newName.length > 20) {
-        document.getElementById('name-change-error').textContent = 'Name must be 20 characters or less';
-        return;
-    }
-    
-    if (newName === myName) {
-        cancelEditName();
-        return;
-    }
-    
-    socket.emit('changeName', { newName: newName });
 }
 
 // Send friend request
@@ -1073,33 +1099,6 @@ socket.on('friendCodeChanged', (data) => {
         localStorage.setItem('friends', JSON.stringify(friends));
         renderFriendsList();
     }
-});
-
-socket.on('nameChanged', (data) => {
-    // Successfully changed our name
-    myName = data.newName;
-    localStorage.setItem('playerName', data.newName);
-    document.getElementById('display-profile-name').textContent = data.newName;
-    cancelEditName();
-});
-
-socket.on('nameChangeError', (message) => {
-    document.getElementById('name-change-error').textContent = message;
-});
-
-socket.on('friendNameChanged', (data) => {
-    // A friend changed their name - update local storage
-    const friend = friends.find(f => f.friendCode === data.friendCode);
-    if (friend) {
-        friend.name = data.newName;
-        localStorage.setItem('friends', JSON.stringify(friends));
-        renderFriendsList();
-    }
-});
-
-socket.on('registerError', (message) => {
-    // Show error on the name popup
-    document.getElementById('global-name-error').textContent = message;
 });
 
 socket.on('friendRequestReceived', (from) => {

@@ -452,17 +452,6 @@ io.on('connection', (socket) => {
     socket.on('registerUser', ({ friendCode, name }) => {
         let user = users.get(friendCode);
         
-        // Check for duplicate name (case-insensitive)
-        if (name) {
-            const nameLower = name.toLowerCase();
-            for (const [code, u] of users) {
-                if (u.name.toLowerCase() === nameLower && code !== friendCode) {
-                    socket.emit('registerError', 'This name is already taken');
-                    return;
-                }
-            }
-        }
-        
         if (user) {
             // Existing user - update socket and online status
             user.socketId = socket.id;
@@ -531,58 +520,63 @@ io.on('connection', (socket) => {
     });
 
     // Change username
-    socket.on('changeName', ({ newName }) => {
+    socket.on('changeUsername', ({ newUsername }) => {
         const userData = onlineUsers.get(socket.id);
         if (!userData) {
-            socket.emit('nameChangeError', 'You must be registered first');
+            socket.emit('usernameError', { message: 'You must be registered first' });
             return;
         }
 
-        const trimmedName = newName?.trim();
-        if (!trimmedName || trimmedName.length < 2) {
-            socket.emit('nameChangeError', 'Name must be at least 2 characters');
+        // Validate username
+        if (!newUsername || newUsername.length < 2) {
+            socket.emit('usernameError', { message: 'Username must be at least 2 characters' });
             return;
         }
 
-        if (trimmedName.length > 20) {
-            socket.emit('nameChangeError', 'Name must be 20 characters or less');
+        if (newUsername.length > 15) {
+            socket.emit('usernameError', { message: 'Username must be 15 characters or less' });
             return;
         }
 
-        // Check for duplicate name (case-insensitive)
-        const nameLower = trimmedName.toLowerCase();
-        for (const [code, u] of users) {
-            if (u.name.toLowerCase() === nameLower && code !== userData.friendCode) {
-                socket.emit('nameChangeError', 'This name is already taken');
+        if (!/^[a-zA-Z0-9_]+$/.test(newUsername)) {
+            socket.emit('usernameError', { message: 'Username can only contain letters, numbers, and underscores' });
+            return;
+        }
+
+        // Check if username already exists (case-insensitive)
+        const lowerNewUsername = newUsername.toLowerCase();
+        for (const [code, user] of users) {
+            if (code !== userData.friendCode && user.name.toLowerCase() === lowerNewUsername) {
+                socket.emit('usernameError', { message: 'This username is already taken' });
                 return;
             }
         }
 
+        // Update username
         const user = users.get(userData.friendCode);
-        if (!user) {
-            socket.emit('nameChangeError', 'User not found');
-            return;
+        if (user) {
+            const oldName = user.name;
+            user.name = newUsername;
+            userData.name = newUsername;
+            saveFriendsData();
+
+            // Notify friends about the name change
+            user.friends.forEach(fc => {
+                const friend = users.get(fc);
+                if (friend && friend.socketId) {
+                    io.to(friend.socketId).emit('friendStatusChanged', {
+                        friendCode: userData.friendCode,
+                        name: newUsername,
+                        online: true,
+                        away: user.away || false,
+                        inRoom: user.currentRoom
+                    });
+                }
+            });
+
+            socket.emit('usernameChanged', { newUsername: newUsername });
+            console.log(`User ${oldName} changed username to ${newUsername}`);
         }
-
-        const oldName = user.name;
-        user.name = trimmedName;
-        userData.name = trimmedName;
-        saveFriendsData();
-
-        // Notify the user of success
-        socket.emit('nameChanged', { newName: trimmedName });
-
-        // Notify all friends of the name change
-        user.friends.forEach(fc => {
-            const friend = users.get(fc);
-            if (friend && friend.socketId) {
-                io.to(friend.socketId).emit('friendNameChanged', {
-                    friendCode: userData.friendCode,
-                    oldName: oldName,
-                    newName: trimmedName
-                });
-            }
-        });
     });
 
     // Refresh friend code

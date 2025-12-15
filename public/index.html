@@ -55,6 +55,36 @@
         <span class="friends-badge" id="friends-badge" style="display: none;">0</span>
     </button>
 
+    <!-- Settings Button (next to friends) -->
+    <button id="settings-btn" class="settings-btn" onclick="openSettingsModal()">
+        <span class="settings-icon">⚙️</span>
+    </button>
+
+    <!-- Settings Modal -->
+    <div id="settings-modal" class="modal">
+        <div class="modal-content settings-modal-content">
+            <button class="close-modal" onclick="closeSettingsModal()">×</button>
+            <h2>Settings</h2>
+            
+            <div class="settings-section">
+                <h3>Profile</h3>
+                <div class="form-group">
+                    <label for="settings-username">Username</label>
+                    <input type="text" id="settings-username" placeholder="Enter new username" maxlength="15">
+                </div>
+                <p id="settings-error" class="error-message"></p>
+                <p id="settings-success" class="success-message"></p>
+                <button id="save-username-btn" class="btn primary" onclick="saveUsername()">Save Username</button>
+            </div>
+            
+            <div class="settings-section">
+                <h3>Current Info</h3>
+                <p class="settings-info">Username: <strong id="current-username-display">-</strong></p>
+                <p class="settings-info">Friend Code: <strong id="current-friendcode-display">-</strong></p>
+            </div>
+        </div>
+    </div>
+
     <!-- Friends Modal -->
     <div id="friends-modal" class="modal">
         <div class="modal-content friends-modal-content">
@@ -77,18 +107,7 @@
                             <span id="my-friend-code">------</span>
                             <button onclick="refreshFriendCode()" class="refresh-btn" title="Get new code">🔄</button>
                         </div>
-                        <div class="profile-name-section">
-                            <div id="name-display-mode" class="name-display-mode">
-                                <span>Name: <strong id="display-profile-name"></strong></span>
-                                <button onclick="startEditName()" class="edit-name-btn" title="Change name">✏️</button>
-                            </div>
-                            <div id="name-edit-mode" class="name-edit-mode" style="display: none;">
-                                <input type="text" id="edit-name-input" placeholder="New name" maxlength="20">
-                                <button onclick="saveNewName()" class="save-name-btn">✓</button>
-                                <button onclick="cancelEditName()" class="cancel-name-btn">✕</button>
-                            </div>
-                            <p id="name-change-error" class="error-message"></p>
-                        </div>
+                        <p class="profile-name-display">Name: <span id="display-profile-name"></span></p>
                     </div>
                     <div class="friends-list-container">
                         <ul id="friends-list-ul"></ul>

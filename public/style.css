@@ -909,6 +909,69 @@ header {
     transform: scale(1.05);
 }
 
+/* Settings Button (next to friends button) */
+.settings-btn {
+    position: fixed;
+    top: 10px;
+    right: 62px;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background-color: var(--color-tone-5);
+    border: 2px solid var(--color-tone-4);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    transition: all 0.2s;
+}
+
+.settings-btn:hover {
+    background-color: var(--color-tone-4);
+    transform: scale(1.05);
+}
+
+.settings-icon {
+    font-size: 20px;
+}
+
+/* Settings Modal */
+.settings-modal-content {
+    max-width: 360px;
+    width: 90%;
+}
+
+.settings-section {
+    margin-bottom: 25px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--color-tone-4);
+}
+
+.settings-section:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+    padding-bottom: 0;
+}
+
+.settings-section h3 {
+    font-size: 14px;
+    color: var(--color-tone-2);
+    margin-bottom: 15px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.settings-info {
+    font-size: 14px;
+    color: var(--color-tone-1);
+    margin-bottom: 8px;
+}
+
+.settings-info strong {
+    color: var(--color-correct);
+}
+
 .friends-icon-img {
     width: 24px;
     height: 24px;
@@ -1067,87 +1130,6 @@ header {
     background-color: var(--color-tone-4);
     opacity: 1;
     transform: rotate(180deg);
-}
-
-/* Name Edit Section */
-.profile-name-section {
-    margin-top: 10px;
-}
-
-.name-display-mode {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-}
-
-.edit-name-btn {
-    background: none;
-    border: none;
-    cursor: pointer;
-    font-size: 14px;
-    padding: 2px 6px;
-    opacity: 0.7;
-    transition: opacity 0.2s;
-}
-
-.edit-name-btn:hover {
-    opacity: 1;
-}
-
-.name-edit-mode {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-}
-
-.name-edit-mode input {
-    padding: 6px 10px;
-    border: 2px solid var(--color-tone-4);
-    border-radius: 4px;
-    background-color: var(--color-tone-7);
-    color: var(--color-tone-1);
-    font-size: 14px;
-    width: 140px;
-    text-align: center;
-}
-
-.name-edit-mode input:focus {
-    outline: none;
-    border-color: var(--color-correct);
-}
-
-.save-name-btn, .cancel-name-btn {
-    padding: 6px 10px;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 14px;
-    transition: all 0.2s;
-}
-
-.save-name-btn {
-    background-color: var(--color-correct);
-    color: white;
-}
-
-.save-name-btn:hover {
-    background-color: #45a049;
-}
-
-.cancel-name-btn {
-    background-color: var(--color-tone-4);
-    color: var(--color-tone-1);
-}
-
-.cancel-name-btn:hover {
-    background-color: #555;
-}
-
-.profile-name-section .error-message {
-    margin-top: 8px;
-    font-size: 12px;
 }
 
 
