@@ -783,6 +783,18 @@ header {
     color: var(--color-correct);
 }
 
+.gameover-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    align-items: center;
+    margin-top: 20px;
+}
+
+.gameover-buttons .btn {
+    min-width: 200px;
+}
+
 /* Mobile Responsive */
 @media (max-width: 600px) {
     .sidebar-left {

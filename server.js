@@ -390,6 +390,35 @@ io.on('connection', (socket) => {
         room.roundInProgress = false;
     }
 
+    // Return to lobby after game over
+    socket.on('returnToLobby', () => {
+        const room = rooms.get(socket.roomCode);
+        if (!room) return;
+
+        // Reset player scores
+        room.players.forEach(player => {
+            player.score = 0;
+            player.currentGuess = 0;
+            player.guesses = [];
+            player.hasWonRound = false;
+            player.outOfGuesses = false;
+        });
+
+        // Send each player back to lobby with their host status
+        room.players.forEach(player => {
+            io.to(player.id).emit('returnedToLobby', {
+                roomCode: room.code,
+                players: room.players,
+                maxPlayers: room.maxPlayers,
+                maxRounds: room.maxRounds,
+                isHost: player.id === room.host
+            });
+        });
+
+        updateRoomActivity(room);
+        console.log(`Room ${room.code} returned to lobby`);
+    });
+
     // Handle disconnection
     socket.on('disconnect', () => {
         console.log('User disconnected:', socket.id);

@@ -8,6 +8,7 @@ let currentRow = 0;
 let gameActive = false;
 let keyboardState = {};
 let isWaitingOnPlayers = false;
+let hasWonCurrentRound = false;
 
 // DOM Elements
 const screens = {
@@ -229,6 +230,7 @@ socket.on('gameStarted', (data) => {
     currentRow = 0;
     keyboardState = {};
     isWaitingOnPlayers = false;
+    hasWonCurrentRound = false;
     
     showScreen('game-screen');
     initGameBoard();
@@ -245,6 +247,12 @@ socket.on('gameStarted', (data) => {
 socket.on('guessResult', (data) => {
     const row = document.querySelectorAll('.row')[data.guessNumber - 1];
     const tiles = row.querySelectorAll('.tile');
+    
+    // Check if this guess was correct (all tiles are 'correct')
+    const isCorrectGuess = data.result.every(status => status === 'correct');
+    if (isCorrectGuess) {
+        hasWonCurrentRound = true;
+    }
     
     // Animate tiles with results
     data.result.forEach((status, index) => {
@@ -281,8 +289,10 @@ socket.on('roundWon', (data) => {
     isWaitingOnPlayers = false;
     updateScoreboard(data.players);
     
-    // Show the correct word on the board for players who didn't get it
-    revealCorrectWord(data.word);
+    // Show the correct word on the board only for players who didn't get it
+    if (!hasWonCurrentRound) {
+        revealCorrectWord(data.word);
+    }
     
     // Show the winner animation
     showRoundWinnerAnimation(data.winner, data.word, false);
@@ -303,6 +313,7 @@ socket.on('newRound', (data) => {
     currentRow = 0;
     keyboardState = {};
     isWaitingOnPlayers = false;
+    hasWonCurrentRound = false;
     
     initGameBoard();
     updateRoundInfo(data.currentRound, data.maxRounds);
@@ -332,6 +343,26 @@ socket.on('gameOver', (data) => {
         li.innerHTML = `<span>${index + 1}. ${player.name}</span><span>${player.score} pts</span>`;
         scoreList.appendChild(li);
     });
+    
+    // Set up play again button
+    document.getElementById('play-again-btn').onclick = () => {
+        socket.emit('returnToLobby');
+    };
+});
+
+// Return to lobby after game over
+socket.on('returnedToLobby', (data) => {
+    showScreen('lobby-screen');
+    updateLobby(data);
+    
+    // Update host status
+    isHost = data.isHost;
+    const startBtn = document.getElementById('start-game-btn');
+    if (isHost) {
+        startBtn.style.display = 'block';
+    } else {
+        startBtn.style.display = 'none';
+    }
 });
 
 // UI Functions
