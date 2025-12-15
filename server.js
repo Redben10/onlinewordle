@@ -855,11 +855,6 @@ io.on('connection', (socket) => {
             return;
         }
 
-        if (room.gameStarted) {
-            socket.emit('friendError', 'Game already in progress');
-            return;
-        }
-
         io.to(friend.socketId).emit('gameInvite', {
             fromName: user.name,
             fromCode: userData.friendCode,
