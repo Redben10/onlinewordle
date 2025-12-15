@@ -452,6 +452,17 @@ io.on('connection', (socket) => {
     socket.on('registerUser', ({ friendCode, name }) => {
         let user = users.get(friendCode);
         
+        // Check for duplicate name (case-insensitive)
+        if (name) {
+            const nameLower = name.toLowerCase();
+            for (const [code, u] of users) {
+                if (u.name.toLowerCase() === nameLower && code !== friendCode) {
+                    socket.emit('registerError', 'This name is already taken');
+                    return;
+                }
+            }
+        }
+        
         if (user) {
             // Existing user - update socket and online status
             user.socketId = socket.id;
@@ -516,6 +527,61 @@ io.on('connection', (socket) => {
             name: user.name,
             friends: friendsList,
             pendingRequests: user.pendingRequests
+        });
+    });
+
+    // Change username
+    socket.on('changeName', ({ newName }) => {
+        const userData = onlineUsers.get(socket.id);
+        if (!userData) {
+            socket.emit('nameChangeError', 'You must be registered first');
+            return;
+        }
+
+        const trimmedName = newName?.trim();
+        if (!trimmedName || trimmedName.length < 2) {
+            socket.emit('nameChangeError', 'Name must be at least 2 characters');
+            return;
+        }
+
+        if (trimmedName.length > 20) {
+            socket.emit('nameChangeError', 'Name must be 20 characters or less');
+            return;
+        }
+
+        // Check for duplicate name (case-insensitive)
+        const nameLower = trimmedName.toLowerCase();
+        for (const [code, u] of users) {
+            if (u.name.toLowerCase() === nameLower && code !== userData.friendCode) {
+                socket.emit('nameChangeError', 'This name is already taken');
+                return;
+            }
+        }
+
+        const user = users.get(userData.friendCode);
+        if (!user) {
+            socket.emit('nameChangeError', 'User not found');
+            return;
+        }
+
+        const oldName = user.name;
+        user.name = trimmedName;
+        userData.name = trimmedName;
+        saveFriendsData();
+
+        // Notify the user of success
+        socket.emit('nameChanged', { newName: trimmedName });
+
+        // Notify all friends of the name change
+        user.friends.forEach(fc => {
+            const friend = users.get(fc);
+            if (friend && friend.socketId) {
+                io.to(friend.socketId).emit('friendNameChanged', {
+                    friendCode: userData.friendCode,
+                    oldName: oldName,
+                    newName: trimmedName
+                });
+            }
         });
     });
 

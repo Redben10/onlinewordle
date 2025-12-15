@@ -77,7 +77,18 @@
                             <span id="my-friend-code">------</span>
                             <button onclick="refreshFriendCode()" class="refresh-btn" title="Get new code">🔄</button>
                         </div>
-                        <p class="profile-name-display">Name: <span id="display-profile-name"></span></p>
+                        <div class="profile-name-section">
+                            <div id="name-display-mode" class="name-display-mode">
+                                <span>Name: <strong id="display-profile-name"></strong></span>
+                                <button onclick="startEditName()" class="edit-name-btn" title="Change name">✏️</button>
+                            </div>
+                            <div id="name-edit-mode" class="name-edit-mode" style="display: none;">
+                                <input type="text" id="edit-name-input" placeholder="New name" maxlength="20">
+                                <button onclick="saveNewName()" class="save-name-btn">✓</button>
+                                <button onclick="cancelEditName()" class="cancel-name-btn">✕</button>
+                            </div>
+                            <p id="name-change-error" class="error-message"></p>
+                        </div>
                     </div>
                     <div class="friends-list-container">
                         <ul id="friends-list-ul"></ul>

@@ -1069,6 +1069,87 @@ header {
     transform: rotate(180deg);
 }
 
+/* Name Edit Section */
+.profile-name-section {
+    margin-top: 10px;
+}
+
+.name-display-mode {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.edit-name-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 14px;
+    padding: 2px 6px;
+    opacity: 0.7;
+    transition: opacity 0.2s;
+}
+
+.edit-name-btn:hover {
+    opacity: 1;
+}
+
+.name-edit-mode {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.name-edit-mode input {
+    padding: 6px 10px;
+    border: 2px solid var(--color-tone-4);
+    border-radius: 4px;
+    background-color: var(--color-tone-7);
+    color: var(--color-tone-1);
+    font-size: 14px;
+    width: 140px;
+    text-align: center;
+}
+
+.name-edit-mode input:focus {
+    outline: none;
+    border-color: var(--color-correct);
+}
+
+.save-name-btn, .cancel-name-btn {
+    padding: 6px 10px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.2s;
+}
+
+.save-name-btn {
+    background-color: var(--color-correct);
+    color: white;
+}
+
+.save-name-btn:hover {
+    background-color: #45a049;
+}
+
+.cancel-name-btn {
+    background-color: var(--color-tone-4);
+    color: var(--color-tone-1);
+}
+
+.cancel-name-btn:hover {
+    background-color: #555;
+}
+
+.profile-name-section .error-message {
+    margin-top: 8px;
+    font-size: 12px;
+}
+
 
 
 /* Friends List */
