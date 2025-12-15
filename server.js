@@ -527,6 +527,12 @@ io.on('connection', (socket) => {
             return;
         }
 
+        const currentUser = users.get(userData.friendCode);
+        if (!currentUser) {
+            socket.emit('usernameError', { message: 'User not found' });
+            return;
+        }
+
         // Validate username
         if (!newUsername || newUsername.length < 2) {
             socket.emit('usernameError', { message: 'Username must be at least 2 characters' });
@@ -543,40 +549,47 @@ io.on('connection', (socket) => {
             return;
         }
 
-        // Check if username already exists (case-insensitive)
         const lowerNewUsername = newUsername.toLowerCase();
-        for (const [code, user] of users) {
-            if (code !== userData.friendCode && user.name.toLowerCase() === lowerNewUsername) {
+
+        // If setting to their own current name (any case), just succeed
+        if (currentUser.name.toLowerCase() === lowerNewUsername) {
+            socket.emit('usernameChanged', { newUsername: newUsername });
+            return;
+        }
+
+        // Check if username already exists (case-insensitive), excluding current user
+        for (const [friendCode, existingUser] of users) {
+            // Skip the current user's own entry
+            if (friendCode === userData.friendCode) continue;
+            
+            if (existingUser.name.toLowerCase() === lowerNewUsername) {
                 socket.emit('usernameError', { message: 'This username is already taken' });
                 return;
             }
         }
 
         // Update username
-        const user = users.get(userData.friendCode);
-        if (user) {
-            const oldName = user.name;
-            user.name = newUsername;
-            userData.name = newUsername;
-            saveFriendsData();
+        const oldName = currentUser.name;
+        currentUser.name = newUsername;
+        userData.name = newUsername;
+        saveFriendsData();
 
-            // Notify friends about the name change
-            user.friends.forEach(fc => {
-                const friend = users.get(fc);
-                if (friend && friend.socketId) {
-                    io.to(friend.socketId).emit('friendStatusChanged', {
-                        friendCode: userData.friendCode,
-                        name: newUsername,
-                        online: true,
-                        away: user.away || false,
-                        inRoom: user.currentRoom
-                    });
-                }
-            });
+        // Notify friends about the name change
+        currentUser.friends.forEach(fc => {
+            const friend = users.get(fc);
+            if (friend && friend.socketId) {
+                io.to(friend.socketId).emit('friendStatusChanged', {
+                    friendCode: userData.friendCode,
+                    name: newUsername,
+                    online: true,
+                    away: currentUser.away || false,
+                    inRoom: currentUser.currentRoom
+                });
+            }
+        });
 
-            socket.emit('usernameChanged', { newUsername: newUsername });
-            console.log(`User ${oldName} changed username to ${newUsername}`);
-        }
+        socket.emit('usernameChanged', { newUsername: newUsername });
+        console.log(`User ${oldName} changed username to ${newUsername}`);
     });
 
     // Refresh friend code
