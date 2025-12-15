@@ -152,11 +152,6 @@ io.on('connection', (socket) => {
             return;
         }
 
-        if (room.gameStarted) {
-            socket.emit('joinError', 'Game already in progress');
-            return;
-        }
-
         if (room.players.length >= room.maxPlayers) {
             socket.emit('joinError', 'Room is full');
             return;
@@ -171,6 +166,9 @@ io.on('connection', (socket) => {
 
         updateRoomActivity(room);
 
+        // If game is in progress, player joins as spectator for this round
+        const isSpectator = room.gameStarted && room.roundInProgress;
+
         const player = {
             id: socket.id,
             name: playerName,
@@ -178,26 +176,39 @@ io.on('connection', (socket) => {
             currentGuess: 0,
             guesses: [],
             hasWonRound: false,
-            outOfGuesses: false
+            outOfGuesses: false,
+            isSpectator: isSpectator
         };
 
         room.players.push(player);
         socket.join(roomCode.toUpperCase());
         socket.roomCode = roomCode.toUpperCase();
 
-        socket.emit('roomJoined', {
-            roomCode: room.code,
-            players: room.players,
-            maxPlayers: room.maxPlayers,
-            maxRounds: room.maxRounds,
-            isHost: false
-        });
+        if (room.gameStarted) {
+            // Player joined mid-game - send them to the game screen as spectator
+            socket.emit('joinedMidGame', {
+                roomCode: room.code,
+                players: room.players.map(p => ({ name: p.name, score: p.score })),
+                maxPlayers: room.maxPlayers,
+                maxRounds: room.maxRounds,
+                currentRound: room.currentRound,
+                isSpectator: isSpectator
+            });
+        } else {
+            socket.emit('roomJoined', {
+                roomCode: room.code,
+                players: room.players,
+                maxPlayers: room.maxPlayers,
+                maxRounds: room.maxRounds,
+                isHost: false
+            });
+        }
 
         io.to(room.code).emit('playerJoined', {
             players: room.players
         });
 
-        console.log(`${playerName} joined room ${roomCode}`);
+        console.log(`${playerName} joined room ${roomCode}${isSpectator ? ' (spectating)' : ''}`);
     });
 
     // Start the game
@@ -238,7 +249,7 @@ io.on('connection', (socket) => {
         updateRoomActivity(room);
 
         const player = room.players.find(p => p.id === socket.id);
-        if (!player || player.hasWonRound || player.currentGuess >= 6) return;
+        if (!player || player.hasWonRound || player.currentGuess >= 6 || player.isSpectator) return;
 
         const guessUpper = guess.toUpperCase();
         
@@ -328,8 +339,9 @@ io.on('connection', (socket) => {
                 socket.emit('outOfGuesses');
             }
 
-            // Check if all players have exhausted their guesses
-            const allDone = room.players.every(p => p.currentGuess >= 6 || p.hasWonRound);
+            // Check if all active (non-spectator) players have exhausted their guesses
+            const activePlayers = room.players.filter(p => !p.isSpectator);
+            const allDone = activePlayers.every(p => p.currentGuess >= 6 || p.hasWonRound);
             if (allDone && room.roundInProgress) {
                 room.roundInProgress = false;
 
@@ -359,6 +371,7 @@ io.on('connection', (socket) => {
             player.guesses = [];
             player.hasWonRound = false;
             player.outOfGuesses = false;
+            player.isSpectator = false; // Allow late joiners to play now
         });
 
         io.to(room.code).emit('newRound', {

@@ -2,8 +2,8 @@
   "NW4K3G": {
     "friendCode": "NW4K3G",
     "name": "Coen",
-    "socketId": null,
-    "online": false,
+    "socketId": "29ThkAnK9ULas44TAAAJ",
+    "online": true,
     "friends": [
       "ISORUA"
     ],
@@ -14,13 +14,13 @@
   "ISORUA": {
     "friendCode": "ISORUA",
     "name": "redben1002",
-    "socketId": "eeo523IWf4XxeYkxAAAJ",
+    "socketId": "RbPkMvig1EfYtnP_AAAH",
     "online": true,
     "friends": [
       "NW4K3G"
     ],
     "pendingRequests": [],
-    "currentRoom": "ZO7ZQV",
-    "away": true
+    "currentRoom": "790SBP",
+    "away": false
   }
 }

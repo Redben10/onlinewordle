@@ -201,6 +201,35 @@ socket.on('roomJoined', (data) => {
     document.getElementById('waiting-message').style.display = 'block';
 });
 
+// Handle joining a game that's already in progress
+socket.on('joinedMidGame', (data) => {
+    isHost = false;
+    closeJoinModal();
+    gameActive = true;
+    currentGuess = '';
+    currentRow = 0;
+    keyboardState = {};
+    isWaitingOnPlayers = false;
+    hasWonCurrentRound = false;
+    
+    showScreen('game-screen');
+    initGameBoard();
+    updateRoundInfo(data.currentRound, data.maxRounds);
+    updateScoreboard(data.players);
+    
+    if (data.isSpectator) {
+        // Disable input for spectators
+        showMessage('Spectating this round. You\'ll play next round!', 'info');
+        // Gray out the game board for spectators
+        document.querySelectorAll('.key').forEach(key => {
+            key.style.opacity = '0.5';
+            key.style.pointerEvents = 'none';
+        });
+    } else {
+        showMessage('Game in progress! Start guessing!', 'info');
+    }
+});
+
 socket.on('joinError', (message) => {
     document.getElementById('join-error').textContent = message;
 });
@@ -320,9 +349,11 @@ socket.on('newRound', (data) => {
     updateScoreboard(data.players);
     showMessage('New round! Guess the word!', 'info');
     
-    // Reset keyboard colors
+    // Reset keyboard colors and re-enable keys (in case was spectating)
     document.querySelectorAll('.key').forEach(key => {
         key.classList.remove('correct', 'present', 'absent');
+        key.style.opacity = '';
+        key.style.pointerEvents = '';
     });
 });
 
