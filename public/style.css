@@ -458,6 +458,41 @@ header {
     min-width: 60px;
 }
 
+/* Timer Display */
+.timer-display {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: clamp(12px, 3vw, 16px);
+    font-weight: bold;
+    color: var(--color-tone-1);
+    background-color: var(--color-tone-5);
+    padding: 4px 10px;
+    border-radius: 6px;
+    min-width: 65px;
+    justify-content: center;
+}
+
+.timer-icon {
+    font-size: clamp(10px, 2.5vw, 14px);
+}
+
+.timer-display.timer-warning {
+    color: var(--color-present);
+    animation: pulse 1s ease-in-out infinite;
+}
+
+.timer-display.timer-critical {
+    color: #ff4444;
+    animation: pulse 0.5s ease-in-out infinite;
+    background-color: rgba(255, 68, 68, 0.2);
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+}
+
 /* Scoreboard - Always visible on left */
 .scoreboard {
     background-color: var(--color-tone-7);

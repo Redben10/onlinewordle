@@ -127,13 +127,14 @@ function createRoom() {
     const playerName = myName || localStorage.getItem('playerName');
     const maxPlayers = parseInt(document.getElementById('max-players').value);
     const maxRounds = parseInt(document.getElementById('max-rounds').value);
+    const roundTimer = parseInt(document.getElementById('round-timer').value);
 
     if (!playerName) {
         showNamePopup();
         return;
     }
 
-    socket.emit('createRoom', { playerName, maxPlayers, maxRounds });
+    socket.emit('createRoom', { playerName, maxPlayers, maxRounds, roundTimer });
 }
 
 function joinRoom() {
@@ -154,7 +155,7 @@ function joinRoom() {
 }
 
 // Show round winner animation
-function showRoundWinnerAnimation(winner, word, isTie = false) {
+function showRoundWinnerAnimation(winner, word, isTie = false, timedOut = false) {
     const overlay = document.getElementById('round-winner-overlay');
     const content = overlay.querySelector('.round-winner-content');
     const trophy = overlay.querySelector('.trophy');
@@ -162,9 +163,9 @@ function showRoundWinnerAnimation(winner, word, isTie = false) {
     const subtext = document.getElementById('round-winner-subtext');
 
     if (isTie) {
-        trophy.textContent = '🤝';
-        text.textContent = "It's a Tie!";
-        subtext.textContent = `No one got the word: ${word}`;
+        trophy.textContent = timedOut ? '⏰' : '🤝';
+        text.textContent = timedOut ? "Time's Up!" : "It's a Tie!";
+        subtext.textContent = `The word was: ${word}`;
         content.classList.add('tie');
         content.classList.remove('win');
     } else {
@@ -211,11 +212,21 @@ socket.on('joinedMidGame', (data) => {
     keyboardState = {};
     isWaitingOnPlayers = false;
     hasWonCurrentRound = false;
+    currentRoundTimer = data.roundTimer || 0;
     
     showScreen('game-screen');
     initGameBoard();
     updateRoundInfo(data.currentRound, data.maxRounds);
     updateScoreboard(data.players);
+    
+    // Show timer if enabled
+    const timerDisplay = document.getElementById('timer-display');
+    if (currentRoundTimer > 0 && data.timeRemaining > 0) {
+        timerDisplay.style.display = 'flex';
+        updateTimerDisplay(data.timeRemaining);
+    } else {
+        timerDisplay.style.display = 'none';
+    }
     
     if (data.isSpectator) {
         // Disable input for spectators
@@ -260,12 +271,22 @@ socket.on('gameStarted', (data) => {
     keyboardState = {};
     isWaitingOnPlayers = false;
     hasWonCurrentRound = false;
+    currentRoundTimer = data.roundTimer || 0;
     
     showScreen('game-screen');
     initGameBoard();
     updateRoundInfo(data.currentRound, data.maxRounds);
     updateScoreboard(data.players);
     showMessage('Game started! Guess the word!', 'info');
+    
+    // Show or hide timer display
+    const timerDisplay = document.getElementById('timer-display');
+    if (currentRoundTimer > 0) {
+        timerDisplay.style.display = 'flex';
+        updateTimerDisplay(currentRoundTimer);
+    } else {
+        timerDisplay.style.display = 'none';
+    }
     
     // Reset keyboard colors
     document.querySelectorAll('.key').forEach(key => {
@@ -318,6 +339,9 @@ socket.on('roundWon', (data) => {
     isWaitingOnPlayers = false;
     updateScoreboard(data.players);
     
+    // Hide timer
+    document.getElementById('timer-display').style.display = 'none';
+    
     // Show the correct word on the board only for players who didn't get it
     if (!hasWonCurrentRound) {
         revealCorrectWord(data.word);
@@ -332,8 +356,11 @@ socket.on('roundTied', (data) => {
     isWaitingOnPlayers = false;
     updateScoreboard(data.players);
     
-    // Show tie animation
-    showRoundWinnerAnimation(null, data.word, true);
+    // Hide timer
+    document.getElementById('timer-display').style.display = 'none';
+    
+    // Show tie animation (with time out message if applicable)
+    showRoundWinnerAnimation(null, data.word, true, data.timedOut);
 });
 
 socket.on('newRound', (data) => {
@@ -343,11 +370,18 @@ socket.on('newRound', (data) => {
     keyboardState = {};
     isWaitingOnPlayers = false;
     hasWonCurrentRound = false;
+    currentRoundTimer = data.roundTimer || 0;
     
     initGameBoard();
     updateRoundInfo(data.currentRound, data.maxRounds);
     updateScoreboard(data.players);
     showMessage('New round! Guess the word!', 'info');
+    
+    // Reset timer display
+    if (currentRoundTimer > 0) {
+        updateTimerDisplay(currentRoundTimer);
+        document.getElementById('timer-display').classList.remove('timer-warning', 'timer-critical');
+    }
     
     // Reset keyboard colors and re-enable keys (in case was spectating)
     document.querySelectorAll('.key').forEach(key => {
@@ -355,6 +389,11 @@ socket.on('newRound', (data) => {
         key.style.opacity = '';
         key.style.pointerEvents = '';
     });
+});
+
+// Timer update from server
+socket.on('timerUpdate', (data) => {
+    updateTimerDisplay(data.timeRemaining);
 });
 
 socket.on('gameOver', (data) => {
@@ -397,10 +436,46 @@ socket.on('returnedToLobby', (data) => {
 });
 
 // UI Functions
+let currentRoundTimer = 0; // Store current room's timer setting
+
 function updateLobby(data) {
     document.getElementById('display-room-code').textContent = data.roomCode;
     document.getElementById('round-settings').textContent = `${data.maxPlayers} players, ${data.maxRounds} rounds`;
+    
+    // Update timer display
+    currentRoundTimer = data.roundTimer || 0;
+    const timerText = currentRoundTimer > 0 ? formatTime(currentRoundTimer) : 'No Timer';
+    document.getElementById('timer-settings').textContent = timerText;
+    
     updatePlayersList(data.players);
+}
+
+function formatTime(seconds) {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
+
+function updateTimerDisplay(timeRemaining) {
+    const timerDisplay = document.getElementById('timer-display');
+    const timerValue = document.getElementById('timer-value');
+    
+    if (currentRoundTimer > 0) {
+        timerDisplay.style.display = 'flex';
+        timerValue.textContent = formatTime(timeRemaining);
+        
+        // Add warning class when time is low
+        if (timeRemaining <= 10) {
+            timerDisplay.classList.add('timer-critical');
+        } else if (timeRemaining <= 30) {
+            timerDisplay.classList.add('timer-warning');
+            timerDisplay.classList.remove('timer-critical');
+        } else {
+            timerDisplay.classList.remove('timer-warning', 'timer-critical');
+        }
+    } else {
+        timerDisplay.style.display = 'none';
+    }
 }
 
 function updatePlayersList(players) {

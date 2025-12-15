@@ -99,7 +99,7 @@ io.on('connection', (socket) => {
     console.log('User connected:', socket.id);
 
     // Create a new room
-    socket.on('createRoom', ({ playerName, maxPlayers, maxRounds }) => {
+    socket.on('createRoom', ({ playerName, maxPlayers, maxRounds, roundTimer }) => {
         let roomCode = generateRoomCode();
         while (rooms.has(roomCode)) {
             roomCode = generateRoomCode();
@@ -119,10 +119,13 @@ io.on('connection', (socket) => {
             }],
             maxPlayers: maxPlayers || 4,
             maxRounds: maxRounds || 5,
+            roundTimer: roundTimer || 0,
             currentRound: 0,
             currentWord: '',
             gameStarted: false,
             roundInProgress: false,
+            roundTimerInterval: null,
+            roundTimeRemaining: 0,
             lastActivity: Date.now(),
             inactivityTimeout: null
         };
@@ -137,6 +140,7 @@ io.on('connection', (socket) => {
             players: room.players,
             maxPlayers: room.maxPlayers,
             maxRounds: room.maxRounds,
+            roundTimer: room.roundTimer,
             isHost: true
         });
 
@@ -191,7 +195,9 @@ io.on('connection', (socket) => {
                 players: room.players.map(p => ({ name: p.name, score: p.score })),
                 maxPlayers: room.maxPlayers,
                 maxRounds: room.maxRounds,
+                roundTimer: room.roundTimer,
                 currentRound: room.currentRound,
+                timeRemaining: room.roundTimeRemaining,
                 isSpectator: isSpectator
             });
         } else {
@@ -200,6 +206,7 @@ io.on('connection', (socket) => {
                 players: room.players,
                 maxPlayers: room.maxPlayers,
                 maxRounds: room.maxRounds,
+                roundTimer: room.roundTimer,
                 isHost: false
             });
         }
@@ -235,8 +242,14 @@ io.on('connection', (socket) => {
         io.to(room.code).emit('gameStarted', {
             currentRound: room.currentRound,
             maxRounds: room.maxRounds,
+            roundTimer: room.roundTimer,
             players: room.players.map(p => ({ name: p.name, score: p.score }))
         });
+
+        // Start round timer if enabled
+        if (room.roundTimer > 0) {
+            startRoundTimer(room);
+        }
 
         console.log(`Game started in room ${room.code}, word: ${room.currentWord}`);
     });
@@ -318,6 +331,12 @@ io.on('connection', (socket) => {
             player.score++;
 
             room.roundInProgress = false;
+            
+            // Clear timer if running
+            if (room.roundTimerInterval) {
+                clearInterval(room.roundTimerInterval);
+                room.roundTimerInterval = null;
+            }
 
             io.to(room.code).emit('roundWon', {
                 winner: player.name,
@@ -339,11 +358,17 @@ io.on('connection', (socket) => {
                 socket.emit('outOfGuesses');
             }
 
-            // Check if all active (non-spectator) players have exhausted their guesses
+            // Check if all players have exhausted their guesses
             const activePlayers = room.players.filter(p => !p.isSpectator);
             const allDone = activePlayers.every(p => p.currentGuess >= 6 || p.hasWonRound);
             if (allDone && room.roundInProgress) {
                 room.roundInProgress = false;
+                
+                // Clear timer if running
+                if (room.roundTimerInterval) {
+                    clearInterval(room.roundTimerInterval);
+                    room.roundTimerInterval = null;
+                }
 
                 io.to(room.code).emit('roundTied', {
                     word: room.currentWord,
@@ -358,6 +383,51 @@ io.on('connection', (socket) => {
             }
         }
     });
+
+    // Start the round timer
+    function startRoundTimer(room) {
+        if (!room.roundTimer || room.roundTimer <= 0) return;
+        
+        room.roundTimeRemaining = room.roundTimer;
+        
+        // Send initial timer value
+        io.to(room.code).emit('timerUpdate', { timeRemaining: room.roundTimeRemaining });
+        
+        room.roundTimerInterval = setInterval(() => {
+            if (!rooms.has(room.code) || !room.roundInProgress) {
+                clearInterval(room.roundTimerInterval);
+                room.roundTimerInterval = null;
+                return;
+            }
+            
+            room.roundTimeRemaining--;
+            
+            // Send timer update to all clients
+            io.to(room.code).emit('timerUpdate', { timeRemaining: room.roundTimeRemaining });
+            
+            // Time's up!
+            if (room.roundTimeRemaining <= 0) {
+                clearInterval(room.roundTimerInterval);
+                room.roundTimerInterval = null;
+                
+                if (room.roundInProgress) {
+                    room.roundInProgress = false;
+                    
+                    io.to(room.code).emit('roundTied', {
+                        word: room.currentWord,
+                        players: room.players.map(p => ({ name: p.name, score: p.score })),
+                        timedOut: true
+                    });
+                    
+                    if (room.currentRound >= room.maxRounds) {
+                        setTimeout(() => endGame(room), 4000);
+                    } else {
+                        setTimeout(() => startNewRound(room), 5000);
+                    }
+                }
+            }
+        }, 1000);
+    }
 
     function startNewRound(room) {
         if (!rooms.has(room.code)) return;
@@ -377,14 +447,26 @@ io.on('connection', (socket) => {
         io.to(room.code).emit('newRound', {
             currentRound: room.currentRound,
             maxRounds: room.maxRounds,
+            roundTimer: room.roundTimer,
             players: room.players.map(p => ({ name: p.name, score: p.score }))
         });
+
+        // Start timer for new round
+        if (room.roundTimer > 0) {
+            startRoundTimer(room);
+        }
 
         console.log(`New round in room ${room.code}, word: ${room.currentWord}`);
     }
 
     function endGame(room) {
         if (!rooms.has(room.code)) return;
+        
+        // Clear timer if running
+        if (room.roundTimerInterval) {
+            clearInterval(room.roundTimerInterval);
+            room.roundTimerInterval = null;
+        }
         
         const sortedPlayers = [...room.players].sort((a, b) => b.score - a.score);
         const winner = sortedPlayers[0];
@@ -424,6 +506,7 @@ io.on('connection', (socket) => {
                 players: room.players,
                 maxPlayers: room.maxPlayers,
                 maxRounds: room.maxRounds,
+                roundTimer: room.roundTimer,
                 isHost: player.id === room.host
             });
         });
