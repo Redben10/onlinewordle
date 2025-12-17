@@ -95,6 +95,22 @@ function updateRoomActivity(room) {
     }, ROOM_TIMEOUT);
 }
 
+// Helper function to safely emit to a friend - validates socket is still connected
+function safeEmitToFriend(friend, event, data) {
+    if (!friend || !friend.socketId || !friend.online) return false;
+    
+    const friendSocket = io.sockets.sockets.get(friend.socketId);
+    if (friendSocket && friendSocket.connected) {
+        io.to(friend.socketId).emit(event, data);
+        return true;
+    } else {
+        // Socket is stale, mark friend as offline
+        friend.online = false;
+        friend.socketId = null;
+        return false;
+    }
+}
+
 io.on('connection', (socket) => {
     console.log('User connected:', socket.id);
 
@@ -388,6 +404,12 @@ io.on('connection', (socket) => {
     function startRoundTimer(room) {
         if (!room.roundTimer || room.roundTimer <= 0) return;
         
+        // Clear any existing timer first to prevent duplicates
+        if (room.roundTimerInterval) {
+            clearInterval(room.roundTimerInterval);
+            room.roundTimerInterval = null;
+        }
+        
         room.roundTimeRemaining = room.roundTimer;
         
         // Send initial timer value
@@ -531,15 +553,13 @@ io.on('connection', (socket) => {
                 // Notify friends that user went offline
                 user.friends.forEach(friendCode => {
                     const friend = users.get(friendCode);
-                    if (friend && friend.socketId) {
-                        io.to(friend.socketId).emit('friendStatusChanged', {
-                            friendCode: userData.friendCode,
-                            name: user.name,
-                            online: false,
-                            away: false,
-                            inRoom: null
-                        });
-                    }
+                    safeEmitToFriend(friend, 'friendStatusChanged', {
+                        friendCode: userData.friendCode,
+                        name: user.name,
+                        online: false,
+                        away: false,
+                        inRoom: null
+                    });
                 });
             }
             onlineUsers.delete(socket.id);
@@ -613,15 +633,13 @@ io.on('connection', (socket) => {
         // Notify friends that user came online
         user.friends.forEach(fc => {
             const friend = users.get(fc);
-            if (friend && friend.socketId) {
-                io.to(friend.socketId).emit('friendStatusChanged', {
-                    friendCode: user.friendCode,
-                    name: user.name,
-                    online: true,
-                    away: user.away || false,
-                    inRoom: user.currentRoom
-                });
-            }
+            safeEmitToFriend(friend, 'friendStatusChanged', {
+                friendCode: user.friendCode,
+                name: user.name,
+                online: true,
+                away: user.away || false,
+                inRoom: user.currentRoom
+            });
         });
 
         // Send user their data and friend list
@@ -702,15 +720,13 @@ io.on('connection', (socket) => {
         // Notify friends about the name change
         currentUser.friends.forEach(fc => {
             const friend = users.get(fc);
-            if (friend && friend.socketId) {
-                io.to(friend.socketId).emit('friendStatusChanged', {
-                    friendCode: userData.friendCode,
-                    name: newUsername,
-                    online: true,
-                    away: currentUser.away || false,
-                    inRoom: currentUser.currentRoom
-                });
-            }
+            safeEmitToFriend(friend, 'friendStatusChanged', {
+                friendCode: userData.friendCode,
+                name: newUsername,
+                online: true,
+                away: currentUser.away || false,
+                inRoom: currentUser.currentRoom
+            });
         });
 
         socket.emit('usernameChanged', { newUsername: newUsername });
@@ -915,15 +931,13 @@ io.on('connection', (socket) => {
         // Notify friends of status change
         user.friends.forEach(fc => {
             const friend = users.get(fc);
-            if (friend && friend.socketId) {
-                io.to(friend.socketId).emit('friendStatusChanged', {
-                    friendCode: userData.friendCode,
-                    name: user.name,
-                    online: user.online,
-                    away: user.away,
-                    inRoom: user.currentRoom
-                });
-            }
+            safeEmitToFriend(friend, 'friendStatusChanged', {
+                friendCode: userData.friendCode,
+                name: user.name,
+                online: user.online,
+                away: user.away,
+                inRoom: user.currentRoom
+            });
         });
     });
 
@@ -935,7 +949,21 @@ io.on('connection', (socket) => {
         const user = users.get(userData.friendCode);
         const friend = users.get(friendCode);
 
-        if (!user || !friend || !friend.socketId) {
+        if (!user || !friend) {
+            socket.emit('friendError', 'Friend not found');
+            return;
+        }
+        
+        if (!friend.socketId || !friend.online) {
+            socket.emit('friendError', 'Friend is offline');
+            return;
+        }
+
+        // Verify socket is actually connected
+        const friendSocket = io.sockets.sockets.get(friend.socketId);
+        if (!friendSocket || !friendSocket.connected) {
+            friend.online = false;
+            friend.socketId = null;
             socket.emit('friendError', 'Friend is offline');
             return;
         }
@@ -969,11 +997,13 @@ io.on('connection', (socket) => {
         const friend = users.get(toFriendCode);
 
         if (!user || !friend) {
+            console.log(`Chat failed: user or friend not found`);
             return;
         }
 
         // Make sure they are friends
         if (!user.friends.includes(toFriendCode)) {
+            console.log(`Chat failed: ${userData.friendCode} and ${toFriendCode} are not friends`);
             return;
         }
 
@@ -981,13 +1011,24 @@ io.on('connection', (socket) => {
         const cleanMessage = message.substring(0, 200).trim();
         if (!cleanMessage) return;
 
-        // If friend is online, send message
-        if (friend.socketId) {
-            io.to(friend.socketId).emit('chatMessage', {
-                fromCode: userData.friendCode,
-                fromName: user.name,
-                message: cleanMessage
-            });
+        // If friend is online and socket is valid, send message
+        if (friend.socketId && friend.online) {
+            const friendSocket = io.sockets.sockets.get(friend.socketId);
+            if (friendSocket && friendSocket.connected) {
+                io.to(friend.socketId).emit('chatMessage', {
+                    fromCode: userData.friendCode,
+                    fromName: user.name,
+                    message: cleanMessage
+                });
+                console.log(`Chat sent from ${user.name} to ${friend.name}`);
+            } else {
+                // Socket is stale, mark friend as offline
+                console.log(`Chat failed: ${friend.name}'s socket is stale, marking offline`);
+                friend.online = false;
+                friend.socketId = null;
+            }
+        } else {
+            console.log(`Chat failed: ${friend.name} is offline`);
         }
     });
 
@@ -1004,15 +1045,13 @@ io.on('connection', (socket) => {
         // Notify friends
         user.friends.forEach(fc => {
             const friend = users.get(fc);
-            if (friend && friend.socketId) {
-                io.to(friend.socketId).emit('friendStatusChanged', {
-                    friendCode: userData.friendCode,
-                    name: user.name,
-                    online: true,
-                    away: user.away || false,
-                    inRoom: roomCode
-                });
-            }
+            safeEmitToFriend(friend, 'friendStatusChanged', {
+                friendCode: userData.friendCode,
+                name: user.name,
+                online: true,
+                away: user.away || false,
+                inRoom: roomCode
+            });
         });
     });
 });

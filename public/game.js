@@ -271,6 +271,7 @@ socket.on('gameStarted', (data) => {
     keyboardState = {};
     isWaitingOnPlayers = false;
     hasWonCurrentRound = false;
+    isProcessingGuess = false;
     currentRoundTimer = data.roundTimer || 0;
     
     showScreen('game-screen');
@@ -294,9 +295,22 @@ socket.on('gameStarted', (data) => {
     });
 });
 
+let isProcessingGuess = false;
+
 socket.on('guessResult', (data) => {
-    const row = document.querySelectorAll('.row')[data.guessNumber - 1];
+    // Use the server-provided guess number to find the correct row
+    const rowIndex = data.guessNumber - 1;
+    const row = document.querySelectorAll('.row')[rowIndex];
+    if (!row) return;
+    
     const tiles = row.querySelectorAll('.tile');
+    
+    // First, make sure the tiles show the guess letters
+    const guessLetters = data.guess.split('');
+    tiles.forEach((tile, index) => {
+        tile.textContent = guessLetters[index] || '';
+        tile.classList.add('filled');
+    });
     
     // Check if this guess was correct (all tiles are 'correct')
     const isCorrectGuess = data.result.every(status => status === 'correct');
@@ -315,13 +329,16 @@ socket.on('guessResult', (data) => {
         }, index * 300);
     });
 
+    // Update currentRow to the next row after this guess
     currentRow = data.guessNumber;
     currentGuess = '';
+    isProcessingGuess = false;
 });
 
 socket.on('guessError', (message) => {
     showMessage(message, 'error');
     shakeCurrentRow();
+    isProcessingGuess = false;
 });
 
 socket.on('outOfGuesses', () => {
@@ -370,6 +387,7 @@ socket.on('newRound', (data) => {
     keyboardState = {};
     isWaitingOnPlayers = false;
     hasWonCurrentRound = false;
+    isProcessingGuess = false;
     currentRoundTimer = data.roundTimer || 0;
     
     initGameBoard();
@@ -552,10 +570,11 @@ function handleKeyDown(e) {
 }
 
 function handleKeyPress(key) {
-    if (!gameActive || currentRow >= 6 || isWaitingOnPlayers) return;
+    if (!gameActive || currentRow >= 6 || isWaitingOnPlayers || isProcessingGuess) return;
     
     if (key === 'ENTER') {
         if (currentGuess.length === 5) {
+            isProcessingGuess = true;
             socket.emit('submitGuess', { guess: currentGuess });
         } else {
             showMessage('Not enough letters', 'error');
